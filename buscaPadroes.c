@@ -41,6 +41,7 @@ void* enfila_info(int* vet, int ini){
 	pthread_mutex_unlock(&mutex);
 }
 
+// Cada uma dessas funções tem um loop verificando se o arquivo ja terminou de ser verificado por essa thread e começa as operações tentando desenfilar alguma coisa do buffer
 void* checaSeq (){};
 void* checaTrinca (){};
 void* checaRepet (){};
