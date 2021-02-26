@@ -9,17 +9,17 @@ int _log;								// Informa se o log deve ser impresso ou não
 int tam_bloco;          // Valor N do trabalho, tamanho do bloco que será trabalhado pelas threads
 int tam_buf;            // Valor M do trabalho, tamanho do buffer compartilhado pelas threads
 FILE *fp;               // Arquivo binário que será lido
-sem_t em, espVazio, espCheio;
+sem_t em, espVazio, espCheio; // Semáforos
 
-// estrutura que aramazena o iniíco e fim (posições) do segmento do vetor a ser trabalhado
+// Estrutura que aramazena o iníco e fim (posições) do segmento do vetor a ser trabalhado
 typedef struct{
   int ini;
   int* data_set;
   int fim;
 } info;
 
-info *buffer;           // buffer que será utilizado pelas threads
-int buffer_in = 0, buffer_out = 0, buffer_count = 0;  // variaveis auxiliares para a fila (buffer)
+info *buffer; // Buffer que será utilizado pelas threads
+int buffer_in = 0, buffer_out = 0, buffer_count = 0;  // Variaveis auxiliares para a fila (buffer)
 
 // Função que verifica se o malloc deu certo ou não
 void *errorcheck_malloc(size_t size) {
