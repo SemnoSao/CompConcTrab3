@@ -11,6 +11,10 @@ int tam_buf;             // Valor M do trabalho, tamanho do buffer compartilhado
 FILE *fp;                // Arquivo binário que será lido
 int num_lidos_total = 0; // Guarda quantos números já foram lidos do arquivo
 
+int max_repet = 0;
+int count_trinca = 0;
+int count_seq = 0;
+
 sem_t em, espVazio, espCheio, barreira; // Semáforos
 
 // Estrutura que aramazena o iníco e fim (posições) do segmento do vetor a ser trabalhado
@@ -101,7 +105,6 @@ void terminaLeitura() {
   }
 }
 
-// TODO copiei do meu outro trabalho tem q rever ainda, tava pensando se a gente deveria usar semaforo
 void* enfila_info() {
   // Enquanto não leu todos os números do arquivo
   while(num_lidos_total < size) {
@@ -110,17 +113,6 @@ void* enfila_info() {
     if(_log) printf("Thread produtora esperando por um espaço vazio!\n");
     sem_wait(&espVazio);
     if(_log) printf("Thread produtora desbloqueada para inserir!\n");
-
-    /*
-    pthread_mutex_lock(&mutex);
-    // Não permite enfilar se a fila tiver cheia
-    while(buffer_count == tam_buf) {
-      if(_log)printf("Thread produtora bloqueada ao inserir!\n");
-      pthread_cond_wait(&cond_livre, &mutex);
-      if(_log)printf("Thread produtora desbloqueada para inserir!\n");
-    }
-    pthread_mutex_unlock(&mutex);
-    */
 
     // Aloca um vetor para o bloco
     int *bloco = errorcheck_malloc(sizeof(int)*tam_bloco);
@@ -143,21 +135,27 @@ void* enfila_info() {
     
     // Sinaliza que tem um novo espaço cheio no buffer
     sem_post(&espCheio);
-    
-    //pthread_cond_signal(&cond_populado); // como um elemento foi inserido sinaliza que o vetor está populado
   } 
   fclose(fp); // Fecha o arquivo
 }
 
 // Cada uma dessas funções tem um loop verificando se o arquivo ja terminou de ser verificado por essa thread e começa as operações tentando desenfilar alguma coisa do buffer
 void* checaSeq () {
+  int seq = 1;   //algarismo atualemnte procurado para sequencia
   sem_wait(&em);
   while(num_lidos_total < size || buffer_count != 0) {
     sem_post(&em);
 
     entraLeitura();
 
-    // TODO contar as sequencias
+    for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
+      if (seq == buffer[buffer_out].data_set[i]){
+        seq++;
+        if (seq == 5){seq = 1; count_seq = 0;}
+      }
+      else seq = 1;
+    }
+    
     printf("Thread de Sequência executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
 
     terminaLeitura();
@@ -168,13 +166,23 @@ void* checaSeq () {
 }
 
 void* checaTrinca () {
+  int ant = -1;   // guarda o último caracter lido por essa thread
+  int repet = 0;  
   sem_wait(&em);
   while(num_lidos_total < size || buffer_count != 0) {
     sem_post(&em);
 
     entraLeitura();
-
-    // TODO contar as trincas
+    
+    for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
+      if (ant == buffer[buffer_out].data_set[i]){
+        repet++;
+        if (repet == 3) { repet = 0; count_trinca++; }
+      }
+      else repet = 0;
+      ant = buffer[buffer_out].data_set[i];
+    }
+    
     printf("Thread de Trinca executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
 
     terminaLeitura();
@@ -185,13 +193,24 @@ void* checaTrinca () {
 }
 
 void* checaRepet () {
+  int ant = -1;   // guarda o último caracter lido por essa thread
+  int repet = 0;  
   sem_wait(&em);
   while(num_lidos_total < size || buffer_count != 0) {
     sem_post(&em);
 
     entraLeitura();
-
-    // TODO contar as repetições
+    
+    for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
+      if (ant == buffer[buffer_out].data_set[i]){
+        repet++;
+      }
+      else repet = 0;
+      ant = buffer[buffer_out].data_set[i];
+    }
+    
+    if (repet > max_repet) max_repet = repet;
+    
     printf("Thread de Repetição executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
 
     terminaLeitura();
