@@ -3,7 +3,8 @@
 #include <time.h>
 
 int main(int argc, char *argv[]){
-  long long int size = atoll(argv[1]);
+  int _log = atoi(argv[1]);
+  long long int size = atoll(argv[2]);
   FILE *fp;
   srand(time(0));
   
@@ -13,10 +14,10 @@ int main(int argc, char *argv[]){
   
   for (long long int i = 0; i < size; i++){
     int r = (rand() % (5 + 1));
-    //printf("%d ", r);
+    if(_log) printf("%d ", r);
     fwrite(&r, sizeof(r), 1, fp);
   }
-  //printf("\n");
+  if(_log) printf("\n");
   
   return 0;
 }
