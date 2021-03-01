@@ -104,6 +104,9 @@ void terminaLeitura() {
     buffer_out = (buffer_out+1) % tam_buf;
     buffer_count--;
 
+    // Sinaliza que tem um novo espaço vazio no buffer
+    sem_post(&espVazio);
+
     // Atualiza o nº de threads bloqueadas e libera outras threads para continuar
     bloqueadas--;
     sem_post(&barreira);
@@ -142,6 +145,8 @@ void* enfila_info() {
     sem_post(&espCheio);
   } 
   fclose(fp); // Fecha o arquivo
+
+  pthread_exit(NULL); // Termina a thread
 }
 
 // Cada uma dessas funções tem um loop verificando se o arquivo ja terminou de ser verificado por essa thread e começa as operações tentando desenfilar alguma coisa do buffer
@@ -154,9 +159,9 @@ void* checaSeq () {
     entraLeitura();
 
     for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
-      if (seq == buffer[buffer_out].data_set[i]){
-        seq++;
+      if (seq == buffer[buffer_out].data_set[i]) {
         if (seq == 5){seq = 0; count_seq++;} //se a sequencia chegar em 5 reseta e incrementa o contador de sequencias
+        else seq++;
       }
       else if(buffer[buffer_out].data_set[i] == 0) seq = 1; // caso quebrada a sequencia reseta, mas se o valor atual for um procura o proximo
       else seq = 0;
@@ -169,6 +174,8 @@ void* checaSeq () {
     sem_wait(&em);
   }
   sem_post(&em);
+
+  pthread_exit(NULL); // Termina a thread
 }
 
 void* checaTrinca () {
@@ -183,9 +190,9 @@ void* checaTrinca () {
     for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
       if (ant == buffer[buffer_out].data_set[i]){
         repet++;
-        if (repet == 3) { repet = 0; count_trinca++; } // caso repita três vezes incrementa trinca e reseta o contador local
+        if (repet == 3) { repet = 1; count_trinca++; } // caso repita três vezes incrementa trinca e reseta o contador local
       }
-      else repet = 0; // reseta o contador na quebra da sequencia
+      else repet = 1; // reseta o contador na quebra da sequencia
       ant = buffer[buffer_out].data_set[i];
     }
     
@@ -196,11 +203,13 @@ void* checaTrinca () {
     sem_wait(&em);
   }
   sem_post(&em);
+
+  pthread_exit(NULL); // Termina a thread
 }
 
 void* checaRepet () {
   int ant = -1;                 // guarda o último caracter lido por essa thread
-  int repet = 0;                // contador de repetição local
+  int repet = 1;                // contador de repetição local
   int valor_repet = -1;         // valor da repetição local
   long long int pos_repet = -1; // posição da repetição local
   sem_wait(&em);
@@ -213,12 +222,12 @@ void* checaRepet () {
       if (ant == buffer[buffer_out].data_set[i]){
         repet++;
         // na identificação da primeira repetição atualiza as variáveis de localização e valor
-        if(repet == 1) { 
+        if(repet == 2) { 
           valor_repet = buffer[buffer_out].data_set[i];
-          pos_repet = buffer[buffer_out].ini + i;
+          pos_repet = buffer[buffer_out].ini + i - 1;
         }
       }
-      else { repet = 0; valor_repet = -1; pos_repet = -1; } // no caso de quebra de repetição reseta os valores
+      else { repet = 1; valor_repet = -1; pos_repet = -1; } // no caso de quebra de repetição reseta os valores
       ant = buffer[buffer_out].data_set[i];
       
       // se o valor de repetição for o maior até então atualiza os indicadores globais
@@ -236,12 +245,14 @@ void* checaRepet () {
     sem_wait(&em);
   }
   sem_post(&em);
+
+  pthread_exit(NULL); // Termina a thread
 }
 
 int main(int argc, char *argv[]){
 
   if(argc < 4) {
-    printf("Uso do programa: ./%s <(0 ou 1) Define se imprime os logs de execução> <Tamanho de cada bloco> <Tamanho do buffer> <nome do arquivo binário>\n", argv[0]);
+    printf("Uso do programa: ./%s <(0 ou 1) Define se imprime os logs de execução> <Tamanho de cada bloco> <Tamanho do buffer> <Nome do arquivo binário>\n", argv[0]);
     exit(1);
   }
 
@@ -274,10 +285,11 @@ int main(int argc, char *argv[]){
   }
 
   GET_TIME(fim);
-  
+
   printf("Maior sequência de valores idênticos: %lld %lld %d\n", pos_max_repet, max_repet, valor_max_repet );
   printf("Quantidade de triplas: %lld\n", count_trinca);
   printf("Quantidade de ocorrências da sequência <012345>: %lld\n", count_seq);
+  printf("Tempo de execução: %lfs\n", fim - ini);
   
   free(buffer);
 
