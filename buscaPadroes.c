@@ -11,17 +11,17 @@ int tam_buf;             // Valor M do trabalho, tamanho do buffer compartilhado
 FILE *fp;                // Arquivo binário que será lido
 int num_lidos_total = 0; // Guarda quantos números já foram lidos do arquivo
 
-long long int max_repet = 0;
-int valor_max_repet = -1;
-long long int pos_max_repet = -1;
+long long int pos_max_repet = -1; // posição inicial da primeira maior sequencia de algarismos idênticos
+long long int max_repet = 0;      // quantidade de repetições da mairo sequencia de algarismos idênticos
+int valor_max_repet = -1;         // valor da primeira maior sequencia de algarismos idênticos
 
-long long int count_trinca = 0;
+long long int count_trinca = 0;   // quantidade de trincas simples encontradas
 
-long long int count_seq = 0;
+long long int count_seq = 0;      // quantidade de sequencias <0, 1, 2, 3, 4, 5> encontradas
 
 sem_t em, espVazio, espCheio, barreira; // Semáforos
 
-// Estrutura que aramazena o iníco e fim (posições) do segmento do vetor a ser trabalhado
+// Estrutura que aramazena o iníco e fim (posições) do segmento do vetor a ser processado
 typedef struct {
   int ini;
   int* data_set;
@@ -93,7 +93,8 @@ void terminaLeitura() {
     }  
     else sem_post(&barreira);
 
-  } else {
+  }
+  else {
 
     if(_log) printf("Todas as threads entraram da barreira\n");
 
@@ -145,7 +146,7 @@ void* enfila_info() {
 
 // Cada uma dessas funções tem um loop verificando se o arquivo ja terminou de ser verificado por essa thread e começa as operações tentando desenfilar alguma coisa do buffer
 void* checaSeq () {
-  int seq = 0;   //algarismo atualemnte procurado para sequencia
+  int seq = 0;   //algarismo atualmente procurado para sequencia
   sem_wait(&em);
   while(num_lidos_total < size || buffer_count != 0) {
     sem_post(&em);
@@ -155,12 +156,13 @@ void* checaSeq () {
     for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
       if (seq == buffer[buffer_out].data_set[i]){
         seq++;
-        if (seq == 5){seq = 0; count_seq++;}
+        if (seq == 5){seq = 0; count_seq++;} //se a sequencia chegar em 5 reseta e incrementa o contador de sequencias
       }
+      else if(buffer[buffer_out].data_set[i] == 0) seq = 1; // caso quebrada a sequencia reseta, mas se o valor atual for um procura o proximo
       else seq = 0;
     }
     
-    printf("Thread de Sequência executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
+    if(_log) printf("Thread de Sequência executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
 
     terminaLeitura();
 
@@ -171,7 +173,7 @@ void* checaSeq () {
 
 void* checaTrinca () {
   int ant = -1;   // guarda o último caracter lido por essa thread
-  int repet = 0;  
+  int repet = 0;  // guarda o numero de repetições de cada iteração
   sem_wait(&em);
   while(num_lidos_total < size || buffer_count != 0) {
     sem_post(&em);
@@ -181,13 +183,13 @@ void* checaTrinca () {
     for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
       if (ant == buffer[buffer_out].data_set[i]){
         repet++;
-        if (repet == 3) { repet = 0; count_trinca++; }
+        if (repet == 3) { repet = 0; count_trinca++; } // caso repita três vezes incrementa trinca e reseta o contador local
       }
-      else repet = 0;
+      else repet = 0; // reseta o contador na quebra da sequencia
       ant = buffer[buffer_out].data_set[i];
     }
     
-    printf("Thread de Trinca executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
+    if(_log) printf("Thread de Trinca executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
 
     terminaLeitura();
 
@@ -197,10 +199,10 @@ void* checaTrinca () {
 }
 
 void* checaRepet () {
-  int ant = -1;   // guarda o último caracter lido por essa thread
-  int repet = 0;
-  int valor_repet = -1;
-  long long int pos_repet = -1;
+  int ant = -1;                 // guarda o último caracter lido por essa thread
+  int repet = 0;                // contador de repetição local
+  int valor_repet = -1;         // valor da repetição local
+  long long int pos_repet = -1; // posição da repetição local
   sem_wait(&em);
   while(num_lidos_total < size || buffer_count != 0) {
     sem_post(&em);
@@ -210,22 +212,24 @@ void* checaRepet () {
     for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
       if (ant == buffer[buffer_out].data_set[i]){
         repet++;
+        // na identificação da primeira repetição atualiza as variáveis de localização e valor
         if(repet == 1) { 
           valor_repet = buffer[buffer_out].data_set[i];
           pos_repet = buffer[buffer_out].ini + i;
         }
       }
-      else { repet = 0; valor_repet = -1; pos_repet = -1; }
+      else { repet = 0; valor_repet = -1; pos_repet = -1; } // no caso de quebra de repetição reseta os valores
       ant = buffer[buffer_out].data_set[i];
+      
+      // se o valor de repetição for o maior até então atualiza os indicadores globais
+      if (repet > max_repet) {
+        max_repet = repet;
+        valor_max_repet = valor_repet;
+        pos_max_repet = pos_repet;
+      } 
     }
     
-    if (repet > max_repet) {
-      max_repet = repet;
-      max_valor_repet = valor_repet;
-      max_pos_repet = pos_repet;
-    } 
-    
-    printf("Thread de Repetição executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
+    if(_log) printf("Thread de Repetição executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
 
     terminaLeitura();
 
@@ -237,32 +241,29 @@ void* checaRepet () {
 int main(int argc, char *argv[]){
 
   if(argc < 4) {
-    printf("Uso do programa: ./%s <(0 ou 1) Define se imprime os logs de execução> <Tamanho de cada bloco> <Tamanho do buffer>\n", argv[0]);
+    printf("Uso do programa: ./%s <(0 ou 1) Define se imprime os logs de execução> <Tamanho de cada bloco> <Tamanho do buffer> <nome do arquivo binário>\n", argv[0]);
     exit(1);
   }
 
   tam_bloco = atoi(argv[2]);
   tam_buf = atoi(argv[3]);
   _log = atoi(argv[1]);
+  char* arq = argv[4];
   double ini, fim;
   pthread_t tid[4];
 
   // Inicializa os semáforos
   sem_init(&em, 0, 1); sem_init(&espVazio, 0, tam_buf); sem_init(&espCheio, 0, 0); sem_init(&barreira, 0, 0);
 
-  buffer = (info *) errorcheck_malloc(sizeof(info) * tam_buf); // Inicializa o buffer
+  // Inicializa o buffer
+  buffer = (info *) errorcheck_malloc(sizeof(info) * tam_buf); 
   
-  fp = fopen( "teste.bin" , "rb" );
+  // Abre o arquivo
+  fp = fopen( arq , "rb" );
   fread(&size,sizeof(size),1,fp);
-  
-  // int arquivo[size];
-  // fread(&arquivo,sizeof(arquivo),1,fp);
-  // for(long long int i = 0; i<size; i++) printf("%u ", arquivo[i]); printf("\n"); // checando validade da leitura
-  
+ 
   GET_TIME(ini);
   
-  // eu acho que cada thread poderia retornar um struct com os resultados finais? me pareceu uma boa ideia ao
-  // invés de criar um monte de varíavel global mas não sei fazer isso :p
   if(pthread_create(&tid[0], NULL, enfila_info, NULL)) exit(-1);
   if(pthread_create(&tid[1], NULL, checaSeq, NULL)) exit(-1);
   if(pthread_create(&tid[2], NULL, checaTrinca, NULL)) exit(-1);
@@ -274,9 +275,9 @@ int main(int argc, char *argv[]){
 
   GET_TIME(fim);
   
-  printf("Maior sequência de valores idênticos: %lld %lld %d", max_pos_repet, max_repet, max_valor_repet );
-  printf("Quantidade de triplas: %lld", count_trinca);
-  printf("Quantidade de ocorrências da sequência <012345>: %lld", count_seq);
+  printf("Maior sequência de valores idênticos: %lld %lld %d\n", pos_max_repet, max_repet, valor_max_repet );
+  printf("Quantidade de triplas: %lld\n", count_trinca);
+  printf("Quantidade de ocorrências da sequência <012345>: %lld\n", count_seq);
   
   free(buffer);
 
