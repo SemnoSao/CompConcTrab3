@@ -11,9 +11,13 @@ int tam_buf;             // Valor M do trabalho, tamanho do buffer compartilhado
 FILE *fp;                // Arquivo binário que será lido
 int num_lidos_total = 0; // Guarda quantos números já foram lidos do arquivo
 
-int max_repet = 0;
-int count_trinca = 0;
-int count_seq = 0;
+long long int max_repet = 0;
+int valor_max_repet = -1;
+long long int pos_max_repet = -1;
+
+long long int count_trinca = 0;
+
+long long int count_seq = 0;
 
 sem_t em, espVazio, espCheio, barreira; // Semáforos
 
@@ -141,7 +145,7 @@ void* enfila_info() {
 
 // Cada uma dessas funções tem um loop verificando se o arquivo ja terminou de ser verificado por essa thread e começa as operações tentando desenfilar alguma coisa do buffer
 void* checaSeq () {
-  int seq = 1;   //algarismo atualemnte procurado para sequencia
+  int seq = 0;   //algarismo atualemnte procurado para sequencia
   sem_wait(&em);
   while(num_lidos_total < size || buffer_count != 0) {
     sem_post(&em);
@@ -151,9 +155,9 @@ void* checaSeq () {
     for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
       if (seq == buffer[buffer_out].data_set[i]){
         seq++;
-        if (seq == 5){seq = 1; count_seq = 0;}
+        if (seq == 5){seq = 0; count_seq++;}
       }
-      else seq = 1;
+      else seq = 0;
     }
     
     printf("Thread de Sequência executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
@@ -194,7 +198,9 @@ void* checaTrinca () {
 
 void* checaRepet () {
   int ant = -1;   // guarda o último caracter lido por essa thread
-  int repet = 0;  
+  int repet = 0;
+  int valor_repet = -1;
+  long long int pos_repet = -1;
   sem_wait(&em);
   while(num_lidos_total < size || buffer_count != 0) {
     sem_post(&em);
@@ -204,12 +210,20 @@ void* checaRepet () {
     for (int i = 0; i < buffer[buffer_out].fim - buffer[buffer_out].ini + 1; i++){
       if (ant == buffer[buffer_out].data_set[i]){
         repet++;
+        if(repet == 1) { 
+          valor_repet = buffer[buffer_out].data_set[i];
+          pos_repet = buffer[buffer_out].ini + i;
+        }
       }
-      else repet = 0;
+      else { repet = 0; valor_repet = -1; pos_repet = -1; }
       ant = buffer[buffer_out].data_set[i];
     }
     
-    if (repet > max_repet) max_repet = repet;
+    if (repet > max_repet) {
+      max_repet = repet;
+      max_valor_repet = valor_repet;
+      max_pos_repet = pos_repet;
+    } 
     
     printf("Thread de Repetição executou no bloco da posição %d até a posição %d\n", buffer[buffer_out].ini, buffer[buffer_out].fim);
 
@@ -259,6 +273,10 @@ int main(int argc, char *argv[]){
   }
 
   GET_TIME(fim);
+  
+  printf("Maior sequência de valores idênticos: %lld %lld %d", max_pos_repet, max_repet, max_valor_repet );
+  printf("Quantidade de triplas: %lld", count_trinca);
+  printf("Quantidade de ocorrências da sequência <012345>: %lld", count_seq);
   
   free(buffer);
 
