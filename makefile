@@ -1,7 +1,8 @@
 all: buscaPadroes produzArquivo
+	@echo "Produzindo arquivo de entrada..."
 	@./produzArquivo 0 10000000
-	@echo "Verificando corretude com N = 100 e M = 100:"
-	@./buscaPadroes 0 100 100 teste.bin > out.txt
+	@echo "Verificando corretude com N = 500 e M = 500..."
+	@./buscaPadroes 0 500 500 teste.bin > out.txt
 	@python corretude.py
 	@echo ""
 	@echo "########## M = 100 ##########"
